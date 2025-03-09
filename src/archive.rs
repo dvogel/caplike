@@ -54,13 +54,31 @@ impl Display for Archive {
 }
 
 #[derive(Debug, Display, Error, PartialEq, Eq)]
-pub enum ArchiveError {
-    // Ignoring file due to extension: {file_name}
+pub enum ArchiveErrorCode {
+    #[display("Ignoring file due to extension.")]
     BadFileExtension,
-    // Ignoring file due to missing version: {file_name}
+
+    #[display("Ignoring file due to missing version.")]
     MissingVersion,
-    // Ignoring file due to missing name before version: {file_name}
+
+    #[display("Ignoring file due to missing name before version.")]
     MissingName,
+}
+
+#[derive(Debug, Display, Error, PartialEq, Eq)]
+#[display("Bad archive name: {}: {}", file_name, error_code)]
+pub struct ArchiveError {
+    file_name: String,
+    error_code: ArchiveErrorCode,
+}
+
+impl ArchiveError {
+    pub fn new(file_name: &str, error_code: ArchiveErrorCode) -> Self {
+        ArchiveError {
+            file_name: file_name.to_string(),
+            error_code,
+        }
+    }
 }
 
 impl Archive {
@@ -85,8 +103,8 @@ impl Archive {
 
     fn match_version(file_name: &str) -> Option<String> {
         let version_re =
-            Regex::new(r"[-_](v[0-9]+([.][0-9]+){0,2}|[0-9]{4}[-]?[0-9]{2}[-]?[0-9]{2})[.]")
-                .expect("rege compilation failure.");
+            Regex::new(r"\b(v[0-9]+([.][0-9]+){0,2}|[0-9]{4}[-]?[0-9]{2}[-]?[0-9]{2})[.]")
+                .expect("regex compilation failure.");
         let caps = version_re.captures(file_name)?;
         Some(caps.get(1)?.as_str().to_string())
     }
@@ -100,14 +118,17 @@ impl Archive {
     }
 
     pub fn from_file_name(file_name: &str) -> Result<Archive, ArchiveError> {
-        let (base_name, archive_format) =
-            Self::match_archive_ext(file_name).ok_or(ArchiveError::BadFileExtension)?;
+        let (base_name, archive_format) = Self::match_archive_ext(file_name).ok_or(
+            ArchiveError::new(file_name, ArchiveErrorCode::BadFileExtension),
+        )?;
 
-        let archive_version =
-            Self::match_version(file_name).ok_or(ArchiveError::MissingVersion)?;
+        let archive_version = Self::match_version(file_name).ok_or(ArchiveError::new(
+            file_name,
+            ArchiveErrorCode::MissingVersion,
+        ))?;
 
         let name = Self::match_name_before_version(file_name, &archive_version)
-            .ok_or(ArchiveError::MissingName)?;
+            .ok_or(ArchiveError::new(file_name, ArchiveErrorCode::MissingName))?;
 
         let extracted_path = {
             let expected_path = Utf8Path::new(base_name.as_str());
@@ -131,9 +152,10 @@ impl Archive {
 
 #[cfg(test)]
 mod tests {
-    use super::{Archive, ArchiveError, ArchiveFormat};
+    use super::{Archive, ArchiveError, ArchiveErrorCode, ArchiveFormat};
     use std::error::Error;
 
+    #[test]
     fn test_basic_success() -> Result<(), Box<dyn Error>> {
         let arc = Archive::from_file_name("abc-123-2000-01-01.tar.gz")?;
         assert_eq!(arc.name, "abc-123");
@@ -142,8 +164,39 @@ mod tests {
         Ok(())
     }
 
+    #[test]
     fn test_bad_extension() {
-        let arc_res = Archive::from_file_name("abc-123-2000-01-01.7z");
-        assert_eq!(arc_res, Err(ArchiveError::BadFileExtension));
+        let file_name = "abc-123-2000-01-01.7z";
+        let arc_res = Archive::from_file_name(file_name);
+        assert_eq!(
+            arc_res,
+            Err(ArchiveError::new(
+                file_name,
+                ArchiveErrorCode::BadFileExtension
+            ))
+        );
+    }
+
+    #[test]
+    fn test_missing_version() {
+        let file_name = "abc-123.zip";
+        let arc_res = Archive::from_file_name(file_name);
+        assert_eq!(
+            arc_res,
+            Err(ArchiveError::new(
+                file_name,
+                ArchiveErrorCode::MissingVersion
+            ))
+        );
+    }
+
+    #[test]
+    fn test_missing_name() {
+        let file_name = "2000-01-01.zip";
+        let arc_res = Archive::from_file_name(file_name);
+        assert_eq!(
+            arc_res,
+            Err(ArchiveError::new(file_name, ArchiveErrorCode::MissingName))
+        );
     }
 }
