@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::fmt::{Display, Formatter};
 
 use camino::{Utf8Path, Utf8PathBuf};
@@ -82,6 +83,22 @@ impl ArchiveError {
 }
 
 impl Archive {
+    pub fn has_name(&self, proposed: &str) -> bool {
+        self.name == proposed
+    }
+
+    pub fn cmp_by_version(&self, other: &Self) -> Ordering {
+        human_sort::compare(&self.version, &other.version)
+    }
+
+    pub fn name(&self) -> &str {
+        self.name.as_str()
+    }
+
+    pub fn base_name(&self) -> &str {
+        self.base_name.as_str()
+    }
+
     fn match_archive_ext(file_name: &str) -> Option<(String, ArchiveFormat)> {
         let archive_ext_re =
             Regex::new(r"[.](tar[.](bz2|gz|xz)|zip)$").expect("regex compilation failure.");
@@ -112,7 +129,7 @@ impl Archive {
     fn match_name_before_version(file_name: &str, version: &str) -> Option<String> {
         let offset = file_name.find(version)?;
         match offset {
-            0..1 => None,
+            0 | 1 => None,
             off => Some(file_name[0..off - 1].to_string()),
         }
     }
