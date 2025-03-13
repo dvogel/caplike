@@ -11,5 +11,6 @@ derive_more = { version = "2.0.1", features = ["error", "display", "from"] }
 env_logger = "0.11.6"
 human-sort = "0.2.2"
 log = "0.4.26"
+ratatui = { version = "0.29.0", features = ["all-widgets", "unstable"] }
 regex = "1.11.1"
 zip = "2.2.3"

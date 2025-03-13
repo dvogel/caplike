@@ -5,7 +5,7 @@ use camino::{Utf8Path, Utf8PathBuf};
 use derive_more::{Display, Error};
 use regex::Regex;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ArchiveFormat {
     Zip,
     TarBz2,
@@ -25,9 +25,9 @@ impl Display for ArchiveFormat {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Archive {
-    // path: Utf8PathBuf,
+    path: Utf8PathBuf,
     extracted_path: Option<Utf8PathBuf>,
     base_name: String,
     format: ArchiveFormat,
@@ -37,7 +37,7 @@ pub struct Archive {
 
 impl Display for Archive {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
-        // f.write_str(self.path.as_str())?;
+        f.write_str(self.path.as_str())?;
         f.write_str("Archive")?;
         f.write_str(" [base_name=")?;
         f.write_str(self.base_name.as_str())?;
@@ -83,6 +83,10 @@ impl ArchiveError {
 }
 
 impl Archive {
+    pub fn path(&self) -> &str {
+        self.path.as_str()
+    }
+
     pub fn has_name(&self, proposed: &str) -> bool {
         self.name == proposed
     }
@@ -97,6 +101,10 @@ impl Archive {
 
     pub fn base_name(&self) -> &str {
         self.base_name.as_str()
+    }
+
+    pub fn extracted_path(&self) -> Option<Utf8PathBuf> {
+        self.extracted_path.to_owned()
     }
 
     fn match_archive_ext(file_name: &str) -> Option<(String, ArchiveFormat)> {
@@ -148,7 +156,7 @@ impl Archive {
             .ok_or(ArchiveError::new(file_name, ArchiveErrorCode::MissingName))?;
 
         let extracted_path = {
-            let expected_path = Utf8Path::new(base_name.as_str());
+            let expected_path = Utf8Path::new(name.as_str());
             if expected_path.exists() && expected_path.is_dir() {
                 Some(expected_path.to_path_buf())
             } else {
@@ -157,7 +165,7 @@ impl Archive {
         };
 
         Ok(Archive {
-            // path: entry.into_path(),
+            path: file_name.into(),
             extracted_path,
             base_name,
             format: archive_format,
@@ -215,5 +223,12 @@ mod tests {
             arc_res,
             Err(ArchiveError::new(file_name, ArchiveErrorCode::MissingName))
         );
+    }
+
+    #[test]
+    fn test_display() -> Result<(), Box<dyn Error>> {
+        let arc = Archive::from_file_name("abc-123-2000-01-01.tar.gz")?;
+        let _txt = format!("{}", arc);
+        Ok(())
     }
 }
