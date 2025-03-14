@@ -64,7 +64,7 @@ fn group_archives(archives: &Vec<Archive>) -> Vec<Vec<&Archive>> {
 fn main_install(maybe_prefix: Option<String>) -> Result<(), Box<dyn Error>> {
     let archives = enumerate_archives()?;
 
-    let matching_archives: Vec<_> = match maybe_prefix {
+    let mut matching_archives: Vec<_> = match maybe_prefix {
         Some(ref prefix) => archives
             .into_iter()
             .filter(|a| a.has_name(prefix.as_str()))
@@ -81,6 +81,7 @@ fn main_install(maybe_prefix: Option<String>) -> Result<(), Box<dyn Error>> {
         return Ok(());
     }
 
+    matching_archives.sort_by(|a, b| a.cmp_by_version(b));
     let archive_groups = group_archives(&matching_archives);
 
     let selected_archive = select_archive(archive_groups);
