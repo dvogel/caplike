@@ -1,4 +1,4 @@
-use std::{error::Error, time::Duration};
+use std::{borrow::Cow, error::Error, time::Duration};
 
 use ratatui::{
     buffer::Buffer,
@@ -166,11 +166,17 @@ impl<'a> Widget for &mut DisambiguationPrompt<'a> {
             );
             let content_areas = content_layout.split(subarea);
 
-            let items: Vec<&str> = grp.iter().map(|arc| arc.base_name()).collect();
+            let items: Vec<_> = grp
+                .iter()
+                .map(|arc| match arc.extracted_path() {
+                    Some(_) => Cow::Owned(format!("{} [e]", arc.base_name())),
+                    None => Cow::Borrowed(arc.base_name()),
+                })
+                .collect();
 
             let block = Block::new()
                 .padding(Padding::uniform(1))
-                .title(Line::raw(grp[0].name()))
+                .title(Line::raw(format!(" {} ", grp[0].name())))
                 .borders(Borders::ALL);
 
             let list = List::new(items)
@@ -231,13 +237,20 @@ mod tests {
             height: 25,
         });
         prompt.render(buf.area, &mut buf);
-        for (idx, expected_letter) in "xyz".chars().enumerate() {
-            let observed_letter = buf.cell((1 + idx as u16, 0)).unwrap().symbol();
+        for (idx, expected_letter) in "┌ xyz ─".chars().enumerate() {
+            let observed_letter = buf.cell((idx as u16, 0)).unwrap().symbol();
             assert_eq!(expected_letter, observed_letter.chars().next().unwrap());
         }
 
         assert_eq!("*", buf.cell((2, 2)).unwrap().symbol());
         assert_eq!(" ", buf.cell((2, 3)).unwrap().symbol());
+        assert_eq!(
+            "xyz-20240101.zip",
+            prompt
+                .selected_archive()
+                .map(|arc| arc.path().to_string())
+                .unwrap_or("<fail>".to_string())
+        );
 
         prompt
             .handle_input(&KeyEvent::new(KeyCode::Char('j'), KeyModifiers::NONE))
@@ -245,6 +258,13 @@ mod tests {
         prompt.render(buf.area, &mut buf);
         assert_eq!(" ", buf.cell((2, 2)).unwrap().symbol());
         assert_eq!("*", buf.cell((2, 3)).unwrap().symbol());
+        assert_eq!(
+            "xyz-20240201.zip",
+            prompt
+                .selected_archive()
+                .map(|arc| arc.path().to_string())
+                .unwrap_or("<fail>".to_string())
+        );
 
         prompt
             .handle_input(&KeyEvent::new(KeyCode::Char('k'), KeyModifiers::NONE))
@@ -252,5 +272,12 @@ mod tests {
         prompt.render(buf.area, &mut buf);
         assert_eq!("*", buf.cell((2, 2)).unwrap().symbol());
         assert_eq!(" ", buf.cell((2, 3)).unwrap().symbol());
+        assert_eq!(
+            "xyz-20240101.zip",
+            prompt
+                .selected_archive()
+                .map(|arc| arc.path().to_string())
+                .unwrap_or("<fail>".to_string())
+        );
     }
 }
